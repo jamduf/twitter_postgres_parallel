@@ -281,8 +281,10 @@ Ensure that your runtimes on the lambda server are recorded below.
 |                        | elapsed time (sequential) | elapsed time (parallel)   |
 | -----------------------| ------------------------- | ------------------------- |
 | `pg_normalized`        |  8m3.236s                 |   0m18.049s               | 
-| `pg_normalized_batch`  |  2m55.288                 |                           | 
+| `pg_normalized_batch`  |  2m55.288s                |   0m16.739s               | 
 | `pg_denormalized`      |  0m24.525s                |   0m3.770s                | 
+
+**NOTE:** I don't know why there is such a big difference between pg_normalized -- I think it just took a really long time to run sequentially? The other differences in times make sense, and are around 1/10 of the time, so I don't know what's up with that. 
 
 Then upload a link to your forked github repo on sakai.
 
