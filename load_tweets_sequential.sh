@@ -7,7 +7,7 @@ echo 'load denormalized'
 echo '================================================================================'
 time for file in $files; do
     echo
-    unzip -p $file | sed 's/\\u0000//g' | psql postgresql://postgres:pass@localhost:4444 -c "COPY tweets_jsonb (data) FROM STDIN csv quote E'\x01' delimiter E'\x02';"
+    unzip -p $file | sed 's/\\u0000//g' | psql postgresql://postgres:pass@localhost:4443 -c "COPY tweets_jsonb (data) FROM STDIN csv quote E'\x01' delimiter E'\x02';"
 done
 
 echo '================================================================================'

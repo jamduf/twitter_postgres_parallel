@@ -38,33 +38,6 @@ def remove_nulls(s):
         return s.replace('\x00','\\x00')
 
 
-def get_id_urls(url):
-    '''
-    Given a url, returns the corresponding id in the urls table.
-    If no row exists for the url, then one is inserted automatically.
-    '''
-    sql = sqlalchemy.sql.text('''
-    insert into urls 
-        (url)
-        values
-        (:url)
-    on conflict do nothing
-    returning id_urls
-    ;
-    ''')
-    res = connection.execute(sql,{'url':url}).first()
-    if res is None:
-        sql = sqlalchemy.sql.text('''
-        select id_urls 
-        from urls
-        where
-            url=:url
-        ''')
-        res = connection.execute(sql,{'url':url}).first()
-    id_urls = res[0]
-    return id_urls
-
-
 def batch(iterable, n=1):
     '''
     Group an iterable into batches of size n.
@@ -170,6 +143,7 @@ def insert_tweets(connection, tweets, batch_size=1000):
         connection: a sqlalchemy connection to the postgresql db
         input_tweets: a list of dictionaries representing the json tweet objects
     '''
+    print(f"[{datetime.datetime.now()}] insert_tweets starting", flush=True)
     for i,tweet_batch in enumerate(batch(tweets, batch_size)):
         print(datetime.datetime.now(),'insert_tweets i=',i)
         _insert_tweets(connection, tweet_batch)
@@ -198,18 +172,22 @@ def _insert_tweets(connection,input_tweets):
     tweet_media = []
     tweet_urls = []
 
-    ######################################## 
+    print(f"[{datetime.datetime.now()}] Total tweets loaded: {len(tweets)}", flush=True)
+    if not tweets:
+        print("⚠️ No tweets loaded from zip!", flush=True)
+
+    ########################################
     # STEP 1: generate the lists
-    ######################################## 
+    ########################################
     for tweet in input_tweets:
 
         ########################################
         # insert into the users table
         ########################################
         if tweet['user']['url'] is None:
-            user_id_urls = None
+            url_temp = None
         else:
-            user_id_urls = get_id_urls(tweet['user']['url'])
+            url_temp = tweet['user']['url']
 
         users.append({
             'id_users':tweet['user']['id'],
@@ -218,7 +196,7 @@ def _insert_tweets(connection,input_tweets):
             'screen_name':remove_nulls(tweet['user']['screen_name']),
             'name':remove_nulls(tweet['user']['name']),
             'location':remove_nulls(tweet['user']['location']),
-            'id_urls':user_id_urls,
+            'url':url_temp,
             'description':remove_nulls(tweet['user']['description']),
             'protected':tweet['user']['protected'],
             'verified':tweet['user']['verified'],
@@ -322,10 +300,10 @@ def _insert_tweets(connection,input_tweets):
             urls = tweet['entities']['urls']
 
         for url in urls:
-            id_urls = get_id_urls(url['expanded_url'])
+            idurl = url['expanded_url']
             tweet_urls.append({
                 'id_tweets':tweet['id'],
-                'id_urls':id_urls,
+                'url':idurl,
                 })
 
         ########################################
@@ -354,8 +332,8 @@ def _insert_tweets(connection,input_tweets):
         ########################################
 
         try:
-            hashtags = tweet['extended_tweet']['entities']['hashtags'] 
-            cashtags = tweet['extended_tweet']['entities']['symbols'] 
+            hashtags = tweet['extended_tweet']['entities']['hashtags']
+            cashtags = tweet['extended_tweet']['entities']['symbols']
         except KeyError:
             hashtags = tweet['entities']['hashtags']
             cashtags = tweet['entities']['symbols']
@@ -381,16 +359,16 @@ def _insert_tweets(connection,input_tweets):
                 media = []
 
         for medium in media:
-            id_urls = get_id_urls(medium['media_url'])
+            idurl = medium['media_url']
             tweet_media.append({
                 'id_tweets':tweet['id'],
-                'id_urls':id_urls,
+                'url':idurl,
                 'type':medium['type']
                 })
 
-    ######################################## 
+    ########################################
     # STEP 2: perform the actual SQL inserts
-    ######################################## 
+    ########################################
     with connection.begin() as trans:
 
         # use the bulk_insert function to insert most of the data
@@ -447,7 +425,7 @@ if __name__ == '__main__':
     # which prevents excessive dead tuples and autovacuums
     with connection.begin() as trans:
         for filename in sorted(args.inputs, reverse=True):
-            with zipfile.ZipFile(filename, 'r') as archive: 
+            with zipfile.ZipFile(filename, 'r') as archive:
                 print(datetime.datetime.now(),filename)
                 for subfilename in sorted(archive.namelist(), reverse=True):
                     with io.TextIOWrapper(archive.open(subfilename)) as f:
@@ -455,4 +433,7 @@ if __name__ == '__main__':
                         for i,line in enumerate(f):
                             tweet = json.loads(line)
                             tweets.append(tweet)
-                        insert_tweets(connection,tweets,args.batch_size)
+                        insert_tweets(connection, tweets, args.batch_size)
+
+
+
